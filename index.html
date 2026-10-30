@@ -6,7 +6,8 @@
     <link rel="manifest" href="manifest.webmanifest">
     <script src="config.js"></script>
     <meta name="theme-color" content="#020617">
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
+    <link rel="apple-touch-icon" href="icon-512.png">
     <title>Sci Cal</title>
 
     <style>
@@ -3932,7 +3933,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
             body: JSON.stringify({ writes: [{ transform: { document: DOC + '/ads/' + id, fieldTransforms: [{ fieldPath: field, increment: { integerValue: '1' } }] } }] })
         }).catch(function () {});
     }
-    function renderAd() { return;
+    function renderAd() {
         var box = $('adBox'), list = eligible();
         if (!list.length) { box.classList.add('hidden'); cur = null; return; }
         var a = pick(list); cur = a;
@@ -4009,6 +4010,6 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
-<script src="adpopup.js"></script>
+
 </body>
 </html>
