@@ -45,6 +45,16 @@
         }).catch(function () {});
     }
 
+    /* দুটি বিজ্ঞাপনের মাঝে ন্যূনতম বিরতি (সব ট্যাব মিলিয়ে একটাই হিসাব, অ্যাপ বন্ধ করে খুললেও থাকে) */
+    var GAP_MIN = 30, GAP_KEY = 'scical_bigad_last';
+    function cooldownOver() {
+        var last = parseInt(ls(GAP_KEY) || '0', 10);
+        var now = Date.now();
+        if (!last || last > now) return true;          /* কখনো দেখায়নি, বা ঘড়ি উল্টে গেছে */
+        return now - last >= GAP_MIN * 60 * 1000;
+    }
+    function markShown() { try { localStorage.setItem(GAP_KEY, String(Date.now())); } catch (e) {} }
+
     function injectStyle() {
         if (document.getElementById('bigAdStyle')) return;
         var s = document.createElement('style');
@@ -75,8 +85,10 @@
         hide();
         var host = document.getElementById(where === 'graph' ? 'graphStudioModal' : '') ||
             document.querySelector('.mobile-calc-container');
+        if (!cooldownOver()) return;          /* ৩০ মিনিট পার না হলে বিজ্ঞাপন নয় */
         var ad = pick();
         if (!host || !ad) return;
+        markShown();                          /* এখন থেকে ৩০ মিনিট গোনা শুরু */
         injectStyle();
         current = ad;
 
