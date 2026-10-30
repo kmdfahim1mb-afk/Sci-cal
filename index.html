@@ -3932,7 +3932,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
             body: JSON.stringify({ writes: [{ transform: { document: DOC + '/ads/' + id, fieldTransforms: [{ fieldPath: field, increment: { integerValue: '1' } }] } }] })
         }).catch(function () {});
     }
-    function renderAd() {
+    function renderAd() { return;
         var box = $('adBox'), list = eligible();
         if (!list.length) { box.classList.add('hidden'); cur = null; return; }
         var a = pick(list); cur = a;
@@ -4009,6 +4009,6 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
-
+<script src="adpopup.js"></script>
 </body>
 </html>
