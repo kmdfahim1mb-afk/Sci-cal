@@ -1,12 +1,17 @@
 /* Sci Cal — বড় বিজ্ঞাপন (গ্রাফ ল্যাবে)
    - গ্রাফ ল্যাব খুললে স্ক্রিনের বড় অংশ জুড়ে বিজ্ঞাপন আসে
-   - ৫ সেকেন্ড গণনা চলে, তার আগে বন্ধ করা যায় না
+   - কয়েক সেকেন্ড (ডিফল্ট ৫) গণনা চলে, তার আগে বন্ধ করা যায় না
    - ৫ সেকেন্ড পর কোনায় ✕ চিহ্ন আসে
    - অ্যাডমিন থেকে "বিজ্ঞাপন বাধ্যতামূলক" চালু থাকলে: বিজ্ঞাপনের ৫ সেকেন্ড পুরো না দেখা পর্যন্ত ওই ৫টি অংশ ব্যবহার করা যায় না;
-     দেখা শেষ হলে পরের ৩০ মিনিট (GAP_MIN) আর বিজ্ঞাপন লাগে না
+     দেখা শেষ হলে পরের কয়েক মিনিট (অ্যাডমিনের "বিরতি") আর বিজ্ঞাপন লাগে না
    - বিজ্ঞাপনের ডেটা আগের মতোই ক্লাউড থেকে আসে এবং ফোনে জমা থাকে, তাই অফলাইনেও জমানো বিজ্ঞাপন দেখাবে */
 (function () {
-    var SECONDS = 5;
+    var SECONDS_DEFAULT = 5;
+    /* গণনার সেকেন্ড অ্যাডমিন (adSeconds) থেকে আসে; না থাকলে SECONDS_DEFAULT */
+    function secs() {
+        var d = load(), v = d.cfg && d.cfg.adSeconds;
+        return (typeof v === 'number' && isFinite(v) && v >= 1 && v <= 60) ? Math.round(v) : SECONDS_DEFAULT;
+    }
     var KEY = 'scical_cloud_v1';
     var CFG = window.SCICAL_CFG || {};
     var timer = null, current = null;
@@ -48,12 +53,17 @@
     }
 
     /* দুটি বিজ্ঞাপনের মাঝে ন্যূনতম বিরতি (সব ট্যাব মিলিয়ে একটাই হিসাব, অ্যাপ বন্ধ করে খুললেও থাকে) */
-    var GAP_MIN = 30, GAP_KEY = 'scical_bigad_last';
+    var GAP_DEFAULT = 30, GAP_KEY = 'scical_bigad_last';
+    /* বিরতির মিনিট অ্যাডমিন (adGapMin) থেকে আসে; না থাকলে GAP_DEFAULT */
+    function gapMin() {
+        var d = load(), v = d.cfg && d.cfg.adGapMin;
+        return (typeof v === 'number' && isFinite(v) && v >= 0) ? v : GAP_DEFAULT;
+    }
     function cooldownOver() {
         var last = parseInt(ls(GAP_KEY) || '0', 10);
         var now = Date.now();
         if (!last || last > now) return true;          /* কখনো দেখায়নি, বা ঘড়ি উল্টে গেছে */
-        return now - last >= GAP_MIN * 60 * 1000;
+        return now - last >= gapMin() * 60 * 1000;
     }
     /* ---- বাধ্যতামূলক মোড (অ্যাডমিনের adRequired সুইচ) ---- */
     var OK_KEY = 'scical_bigad_ok';
@@ -61,7 +71,7 @@
     function gateOpen() {                        /* ৫ সেকেন্ড পুরো দেখা হয়েছে এবং ৩০ মিনিট পার হয়নি */
         var t = parseInt(ls(OK_KEY) || '0', 10), now = Date.now();
         if (!t || t > now) return false;         /* কখনো দেখেনি, বা ঘড়ি পিছিয়ে দেওয়া হয়েছে */
-        return now - t < GAP_MIN * 60 * 1000;
+        return now - t < gapMin() * 60 * 1000;
     }
     function markSeen() { try { localStorage.setItem(OK_KEY, String(Date.now())); } catch (e) {} }
     function markShown() { try { localStorage.setItem(GAP_KEY, String(Date.now())); } catch (e) {} }
@@ -105,6 +115,7 @@
         injectStyle();
         current = ad;
 
+        var total = secs();
         var el = document.createElement('div');
         el.id = 'bigAd';
         if (gate && where === 'graph') {
@@ -118,7 +129,7 @@
         }
         el.innerHTML =
             '<span class="ba-tag">' + (gate ? 'বিজ্ঞাপন · দেখা শেষ হলে সুবিধা চালু হবে' : 'বিজ্ঞাপন') + '</span>' +
-            '<button class="ba-x" aria-label="Close" disabled>' + SECONDS + '</button>' +
+            '<button class="ba-x" aria-label="Close" disabled>' + total + '</button>' +
             '<a href="#" id="bigAdLink">' +
             '<img class="ba-img" alt="">' +
             '<div class="ba-txt"></div>' +
@@ -142,7 +153,7 @@
         });
         bump(ad.id, 'views');
 
-        var btn = el.querySelector('.ba-x'), left = SECONDS;
+        var btn = el.querySelector('.ba-x'), left = total;
         timer = setInterval(function () {
             if (gate && document.hidden) return;       /* অ্যাপ সামনে না থাকলে গণনা থামে */
             left--;
