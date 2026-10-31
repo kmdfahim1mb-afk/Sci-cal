@@ -443,6 +443,18 @@ input::placeholder{opacity:1;color:#9ca3af}
 @keyframes spRing{0%{transform:scale(.9);opacity:.9}100%{transform:scale(1.55);opacity:0}}
 @keyframes spText{0%{opacity:0;transform:translateY(10px)}100%{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){#splash *{animation:none !important}}
+
+/* ===== গাণিতিক অংশ পুরো স্ক্রিনে ফিট ===== */
+@supports (height:100dvh){
+  .mobile-calc-container{height:100dvh}
+  @media (min-width:640px){.mobile-calc-container{height:94dvh}}
+}
+#viewComp{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}
+#viewComp.hidden{display:none}
+#viewComp > .grid.grid-cols-6{flex:2 1 auto;grid-auto-rows:1fr}
+#viewComp > .grid.grid-cols-6 > .flex-col > button{flex:1 1 auto;width:100%}
+#viewComp > .grid.grid-cols-4{flex:3 1 auto;grid-auto-rows:1fr}
+#viewComp > .grid.grid-cols-4 > button{min-height:0}
     </style>
 </head>
 <body class="text-slate-100 p-0 sm:p-2">
@@ -4036,6 +4048,7 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
 </script>
+
 <script src="adpopup.js"></script>
 </body>
 </html>
