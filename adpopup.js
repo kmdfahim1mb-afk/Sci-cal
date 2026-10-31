@@ -2,6 +2,8 @@
    - গ্রাফ ল্যাব খুললে স্ক্রিনের বড় অংশ জুড়ে বিজ্ঞাপন আসে
    - ৫ সেকেন্ড গণনা চলে, তার আগে বন্ধ করা যায় না
    - ৫ সেকেন্ড পর কোনায় ✕ চিহ্ন আসে
+   - অ্যাডমিন থেকে "বিজ্ঞাপন বাধ্যতামূলক" চালু থাকলে: বিজ্ঞাপনের ৫ সেকেন্ড পুরো না দেখা পর্যন্ত ওই ৫টি অংশ ব্যবহার করা যায় না;
+     দেখা শেষ হলে পরের ৩০ মিনিট (GAP_MIN) আর বিজ্ঞাপন লাগে না
    - বিজ্ঞাপনের ডেটা আগের মতোই ক্লাউড থেকে আসে এবং ফোনে জমা থাকে, তাই অফলাইনেও জমানো বিজ্ঞাপন দেখাবে */
 (function () {
     var SECONDS = 5;
@@ -53,6 +55,15 @@
         if (!last || last > now) return true;          /* কখনো দেখায়নি, বা ঘড়ি উল্টে গেছে */
         return now - last >= GAP_MIN * 60 * 1000;
     }
+    /* ---- বাধ্যতামূলক মোড (অ্যাডমিনের adRequired সুইচ) ---- */
+    var OK_KEY = 'scical_bigad_ok';
+    function gateOn() { var d = load(); return !!(d.cfg && d.cfg.adRequired === true); }
+    function gateOpen() {                        /* ৫ সেকেন্ড পুরো দেখা হয়েছে এবং ৩০ মিনিট পার হয়নি */
+        var t = parseInt(ls(OK_KEY) || '0', 10), now = Date.now();
+        if (!t || t > now) return false;         /* কখনো দেখেনি, বা ঘড়ি পিছিয়ে দেওয়া হয়েছে */
+        return now - t < GAP_MIN * 60 * 1000;
+    }
+    function markSeen() { try { localStorage.setItem(OK_KEY, String(Date.now())); } catch (e) {} }
     function markShown() { try { localStorage.setItem(GAP_KEY, String(Date.now())); } catch (e) {} }
 
     function injectStyle() {
@@ -85,23 +96,28 @@
         hide();
         var host = document.getElementById(where === 'graph' ? 'graphStudioModal' : '') ||
             document.querySelector('.mobile-calc-container');
-        if (!cooldownOver()) return;          /* ৩০ মিনিট পার না হলে বিজ্ঞাপন নয় */
+        var gate = gateOn();
+        if (gate) { if (gateOpen()) return; }          /* দেখা শেষ, ৩০ মিনিটের মধ্যে — সুবিধা খোলা */
+        else if (!cooldownOver()) return;              /* ৩০ মিনিট পার না হলে বিজ্ঞাপন নয় */
         var ad = pick();
-        if (!host || !ad) return;
-        markShown();                          /* এখন থেকে ৩০ মিনিট গোনা শুরু */
+        if (!host || !ad) return;                      /* দেখানোর মতো বিজ্ঞাপন নেই — তালা লাগবে না */
+        if (!gate) markShown();                        /* এখন থেকে ৩০ মিনিট গোনা শুরু */
         injectStyle();
         current = ad;
 
         var el = document.createElement('div');
         el.id = 'bigAd';
-        if (where !== 'graph') {
+        if (gate && where === 'graph') {
+            /* গ্রাফ ল্যাবের পুরোটা ঢাকা (শুধু ওপরের বন্ধ বাটনের সারি খোলা) */
+            el.style.cssText = 'top:62px;left:0;right:0;bottom:0;height:auto;max-height:none;border-radius:0;border-left:0;border-right:0;border-bottom:0';
+        } else if (where !== 'graph') {
             /* ট্যাব বারের ঠিক নিচ থেকে স্ক্রিনের নিচ পর্যন্ত */
             var bar = document.getElementById('tabComp'), hr = host.getBoundingClientRect();
             var top = bar ? bar.parentElement.getBoundingClientRect().bottom - hr.top + 6 : 240;
             el.style.cssText = 'top:' + Math.round(top) + 'px;height:auto;max-height:none;bottom:12px';
         }
         el.innerHTML =
-            '<span class="ba-tag">বিজ্ঞাপন</span>' +
+            '<span class="ba-tag">' + (gate ? 'বিজ্ঞাপন · দেখা শেষ হলে সুবিধা চালু হবে' : 'বিজ্ঞাপন') + '</span>' +
             '<button class="ba-x" aria-label="Close" disabled>' + SECONDS + '</button>' +
             '<a href="#" id="bigAdLink">' +
             '<img class="ba-img" alt="">' +
@@ -128,9 +144,11 @@
 
         var btn = el.querySelector('.ba-x'), left = SECONDS;
         timer = setInterval(function () {
+            if (gate && document.hidden) return;       /* অ্যাপ সামনে না থাকলে গণনা থামে */
             left--;
             if (left > 0) { btn.textContent = left; return; }
             clearInterval(timer); timer = null;
+            if (gate) markSeen();                      /* ৫ সেকেন্ড পুরো হলো — সুবিধা খুলল */
             btn.textContent = '✕'; btn.disabled = false; btn.classList.add('ready');
             btn.addEventListener('click', hide);
         }, 1000);
