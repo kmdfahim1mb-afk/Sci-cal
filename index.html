@@ -1280,7 +1280,13 @@ const historyTape = document.getElementById('historyTape');
 
 /* সংরক্ষণ (অফলাইনেও থাকে) */
 const STORE_KEY = 'fx991_state_v2';
+const HISTORY_DAYS = 7;   /* হিস্টোরি কত দিন থাকবে */
+function pruneHistory() {
+    const limit = Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000;
+    history = history.filter(h => h && typeof h.ts === 'number' && h.ts >= limit);
+}
 function saveState() {
+    pruneHistory();
     try {
         localStorage.setItem(STORE_KEY, JSON.stringify({
             vars, history: history.slice(0, 30), angleMode, theme: currentTheme, soundOn, lastResult
@@ -1295,7 +1301,11 @@ function loadState() {
             ['X', 'Y', 'M'].forEach(k => { if (typeof s.vars[k] === 'number') vars[k] = s.vars[k]; });
         }
         if (Array.isArray(s.history)) {
-            history = s.history.filter(h => h && Array.isArray(h.t) && typeof h.v === 'number');
+            const now = Date.now();
+            history = s.history
+                .filter(h => h && Array.isArray(h.t) && typeof h.v === 'number')
+                .map(h => (typeof h.ts === 'number' ? h : { t: h.t, v: h.v, ts: now }));  /* পুরনো এন্ট্রির সময় এখন থেকে গোনা শুরু */
+            pruneHistory();
         }
         if (['deg', 'rad', 'grad'].includes(s.angleMode)) angleMode = s.angleMode;
         if (s.theme === 'green' || s.theme === 'cyan') currentTheme = s.theme;
@@ -1790,12 +1800,13 @@ function toggleHistoryDrawer(open) {
 }
 
 function addHistory(toks, v) {
-    history.unshift({ t: [...toks], v });
+    history.unshift({ t: [...toks], v, ts: Date.now() });
     if (history.length > 30) history.pop();
     renderHistoryTape();
 }
 
 function renderHistoryTape() {
+    pruneHistory();
     if (history.length === 0) {
         historyTape.innerHTML = `<div class="text-center text-xs text-slate-500 py-6">এখনো কোন হিস্টোরি তৈরি হয়নি</div>`;
         return;
@@ -1831,6 +1842,11 @@ function useHistory(i, what) {
     toggleHistoryDrawer(false);
     updateLCD();
 }
+
+/* অ্যাপ আবার সামনে এলে ৭ দিনের বেশি পুরনো হিস্টোরি মুছে ফেলো */
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) { const n = history.length; pruneHistory(); if (history.length !== n) { renderHistoryTape(); saveState(); } }
+});
 
 function clearHistoryList() {
     playClick(400);
