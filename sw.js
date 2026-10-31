@@ -1,7 +1,7 @@
 /* Sci Cal — সম্পূর্ণ অফলাইন সার্ভিস ওয়ার্কার
    অ্যাপের ফাইল একবার ক্যাশ হলে ইন্টারনেট ছাড়াই হুবহু একই চেহারায় খুলবে।
    ক্লাউড (বিজ্ঞাপন/ঘোষণা/পরিসংখ্যান) ক্যাশ করা হয় না — সেগুলো index.html নিজেই localStorage এ জমা রাখে। */
-const VERSION = 'scical-v5';
+const VERSION = 'scical-v6';
 const CORE = ['./', 'index.html', 'config.js', 'adpopup.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
