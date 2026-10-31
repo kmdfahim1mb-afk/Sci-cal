@@ -33,6 +33,7 @@
             if (a.start && t < a.start) return false;
             if (a.end && t > a.end) return false;
             if (a.lang && a.lang !== 'all' && a.lang !== l) return false;
+            if (a.geo && !(window.SciGeo && window.SciGeo.match(a.geo))) return false;   /* এলাকা মেলে না */
             return !!(a.text || a.imageUrl) && !!a.linkUrl;
         });
         if (!list.length) return null;
