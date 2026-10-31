@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <title>Sci Cal মাস্টার কন্ট্রোল</title>
+<link rel="manifest" href="admin.webmanifest">
+<meta name="theme-color" content="#020617">
+<link rel="icon" href="admin-icon-192.png">
+<link rel="apple-touch-icon" href="admin-icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <script src="config.js"></script>
 <style>
 *{box-sizing:border-box}
@@ -335,6 +341,11 @@ function enter() { $('vLogin').classList.add('hide'); $('vApp').classList.remove
   if (rt) { S.refresh = rt; token().then(enter).catch(function () { $('vLogin').classList.remove('hide'); }); }
   else $('vLogin').classList.remove('hide');
 })();
+</script>
+<script>
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
 </script>
 </body>
 </html>
