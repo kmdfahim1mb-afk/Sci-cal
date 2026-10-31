@@ -46,7 +46,7 @@
     }
 
     /* দুটি বিজ্ঞাপনের মাঝে ন্যূনতম বিরতি (সব ট্যাব মিলিয়ে একটাই হিসাব, অ্যাপ বন্ধ করে খুললেও থাকে) */
-    var GAP_MIN = 0, GAP_KEY = 'scical_bigad_last';
+    var GAP_MIN = 30, GAP_KEY = 'scical_bigad_last';
     function cooldownOver() {
         var last = parseInt(ls(GAP_KEY) || '0', 10);
         var now = Date.now();
