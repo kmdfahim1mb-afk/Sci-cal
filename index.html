@@ -1280,7 +1280,7 @@ const historyTape = document.getElementById('historyTape');
 
 /* সংরক্ষণ (অফলাইনেও থাকে) */
 const STORE_KEY = 'fx991_state_v2';
-const HISTORY_DAYS = 7;   /* হিস্টোরি কত দিন থাকবে */
+const HISTORY_DAYS = 10;   /* হিস্টোরি কত দিন থাকবে */
 function pruneHistory() {
     const limit = Date.now() - HISTORY_DAYS * 24 * 60 * 60 * 1000;
     history = history.filter(h => h && typeof h.ts === 'number' && h.ts >= limit);
