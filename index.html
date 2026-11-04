@@ -6,7 +6,6 @@
     <link rel="manifest" href="manifest.webmanifest">
     <script src="config.js"></script>
     <meta name="theme-color" content="#020617">
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
     <link rel="icon" href="icon-192.png" type="image/png" sizes="192x192">
     <link rel="apple-touch-icon" href="icon-512.png">
     <title>Sci Cal</title>
@@ -4016,25 +4015,149 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
         timer = setInterval(function () { if (!document.hidden) renderAd(); }, 20000);
     }
 
-    /* ---- ইনস্টল/ব্যবহার গণনা (নামহীন) ---- */
+    /* একই ফোন = একটাই গণনা: ডিভাইসের নিজস্ব বৈশিষ্ট্য থেকে হ্যাশ (নাম/নম্বর/ঠিকানা নেওয়া হয় না)।
+       অ্যাপ মুছে আবার ইনস্টল বা আপডেট করলেও একই আইডি আসে, তাই বারবার গণনা হয় না। */
+    function hash(str) {
+        if (window.crypto && crypto.subtle && window.TextEncoder) {
+            return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)).then(function (b) {
+                return Array.prototype.map.call(new Uint8Array(b), function (x) { return ('0' + x.toString(16)).slice(-2); }).join('').slice(0, 24);
+            });
+        }
+        var h1 = 5381, h2 = 52711;
+        for (var i = 0; i < str.length; i++) { var c = str.charCodeAt(i); h1 = (h1 * 33) ^ c; h2 = (h2 * 33) ^ c; }
+        return Promise.resolve(((h1 >>> 0).toString(16) + (h2 >>> 0).toString(16)).slice(0, 24));
+    }
+    function gpu() {
+        try {
+            var g = document.createElement('canvas').getContext('webgl'), e = g && g.getExtension('WEBGL_debug_renderer_info');
+            return e ? String(g.getParameter(e.UNMASKED_RENDERER_WEBGL)) : '';
+        } catch (e) { return ''; }
+    }
+    function deviceId() {
+        var hi = (navigator.userAgentData && navigator.userAgentData.getHighEntropyValues)
+            ? navigator.userAgentData.getHighEntropyValues(['model', 'platformVersion']).catch(function () { return {}; })
+            : Promise.resolve({});
+        return hi.then(function (h) {
+            var w = screen.width || 0, ht = screen.height || 0;
+            var parts = [
+                h.model || '', (h.platformVersion || '').split('.')[0],
+                Math.min(w, ht) + 'x' + Math.max(w, ht), window.devicePixelRatio || 1,
+                navigator.hardwareConcurrency || '', navigator.deviceMemory || '', navigator.maxTouchPoints || '',
+                navigator.platform || '', gpu(),
+                (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })()
+            ];
+            return hash(parts.join('|')).then(function (x) { return 'f' + x; });
+        });
+    }
+
+    /* ---- ইনস্টল/ব্যবহার গণনা (নামহীন) ----
+       ইন্টারনেট থাকলে সঙ্গে সঙ্গে পাঠায়। অফলাইনে খুললে ফোনে জমা রেখে ব্রাউজারকে বলে রাখে
+       (Background Sync) — অ্যাপ বন্ধ থাকলেও ইন্টারনেট ফিরলে sw.js নিজেই পাঠিয়ে দেয়। */
+    function idb(fn) {
+        return new Promise(function (res, rej) {
+            var q = indexedDB.open('scical', 1);
+            q.onupgradeneeded = function () { q.result.createObjectStore('kv'); };
+            q.onerror = function () { rej(q.error); };
+            q.onsuccess = function () {
+                var st = q.result.transaction('kv', 'readwrite').objectStore('kv'), r = fn(st);
+                r.onsuccess = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+            };
+        });
+    }
+    function commitBody(id) {
+        return JSON.stringify({ writes: [{
+            update: { name: DOC + '/installs/' + id, fields: { ver: { stringValue: APP_VERSION }, lang: { stringValue: lang() } } },
+            updateMask: { fieldPaths: ['ver', 'lang'] },
+            updateTransforms: [
+                { fieldPath: 'lastSeen', setToServerValue: 'REQUEST_TIME' },
+                { fieldPath: 'opens', increment: { integerValue: '1' } }
+            ]
+        }] });
+    }
     function ping() {
-        if (!ON || !navigator.onLine) return;
-        var id = ls('scical_did'), first = false;
-        if (!id) { id = 'd' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36); ls('scical_did', id); first = true; }
-        var fields = { ver: { stringValue: APP_VERSION }, lang: { stringValue: lang() } };
-        var mask = ['ver', 'lang'];
-        if (first) { fields.firstSeen = { timestampValue: new Date().toISOString() }; mask.push('firstSeen'); }
-        fetch(BASE.replace('/documents', '') + '/documents:commit?key=' + CFG.apiKey, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ writes: [{
-                update: { name: DOC + '/installs/' + id, fields: fields },
-                updateMask: { fieldPaths: mask },
-                updateTransforms: [
-                    { fieldPath: 'lastSeen', setToServerValue: 'REQUEST_TIME' },
-                    { fieldPath: 'opens', increment: { integerValue: '1' } }
-                ]
-            }] })
+        if (!ON) return;
+        deviceId().then(function (id) {
+            var url = BASE.replace('/documents', '') + '/documents:commit?key=' + CFG.apiKey;
+            if (!navigator.onLine) {                                   /* অফলাইন: জমা রাখো, ইন্টারনেট ফিরলে পাঠানো হবে */
+                return idb(function (st) { return st.put({ url: url, body: commitBody(id) }, 'pending'); }).then(function () {
+                    return navigator.serviceWorker && navigator.serviceWorker.ready;
+                }).then(function (reg) { if (reg && reg.sync) return reg.sync.register('scical-ping'); });
+            }
+            idb(function (st) { return st.delete('pending'); }).catch(function () {});
+            return fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: commitBody(id) });
         }).catch(function () {});
+    }
+
+    /* ---- মোট ব্যবহারের সময় (সেকেন্ড) ----
+       অ্যাপ সামনে খোলা থাকা সময় গোনা হয়, ফোনে (IndexedDB) জমা থাকে এবং ব্যবহারের তারিখ ধরে পাঠানো হয়।
+       অফলাইনে ব্যবহার করলে ইন্টারনেট ফিরলে sw.js নিজেই পাঠায় — অ্যাপ খোলার দরকার নেই। */
+    function dayKey(d) { d = d || new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function uTx(mode, fn) {
+        return new Promise(function (res, rej) {
+            var q = indexedDB.open('scical', 1), out;
+            q.onupgradeneeded = function () { q.result.createObjectStore('kv'); };
+            q.onerror = function () { rej(q.error); };
+            q.onsuccess = function () {
+                var db = q.result, tx = db.transaction('kv', mode);
+                tx.oncomplete = function () { db.close(); res(out); };
+                tx.onerror = tx.onabort = function () { rej(tx.error); };
+                fn(tx.objectStore('kv'), function (v) { out = v; });
+            };
+        });
+    }
+    function uAdd(map) {
+        return uTx('readwrite', function (st) {
+            var g = st.get('usage');
+            g.onsuccess = function () { var m = g.result || {}; for (var k in map) m[k] = (m[k] || 0) + map[k]; st.put(m, 'usage'); };
+        });
+    }
+    function uTake() {                                  /* একসাথে পড়া ও খালি করা — দুই জায়গা থেকে দুবার পাঠানো ঠেকায় */
+        return uTx('readwrite', function (st, set) {
+            var g = st.get('usage');
+            g.onsuccess = function () { set(g.result || {}); st.put({}, 'usage'); };
+        });
+    }
+    function usageBody(m) {
+        var w = [];
+        Object.keys(m).forEach(function (d) {
+            var n = Math.min(43200, Math.floor(m[d] || 0)); if (n < 1) return;
+            w.push({ update: { name: DOC + '/usage/' + d, fields: { d: { stringValue: d } } }, updateMask: { fieldPaths: ['d'] },
+                     updateTransforms: [{ fieldPath: 'secs', increment: { integerValue: String(n) } }] });
+        });
+        return w.length ? JSON.stringify({ writes: w }) : null;
+    }
+    function flushUsage() {
+        if (!ON || !navigator.onLine) return Promise.resolve();
+        return uTake().then(function (m) {
+            var body = usageBody(m); if (!body) return;
+            return fetch(BASE.replace('/documents', '') + '/documents:commit?key=' + CFG.apiKey, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body })
+                .then(function (r) { if (!r.ok) throw 0; }).catch(function () { return uAdd(m); });
+        }).catch(function () {});
+    }
+    var accDay = dayKey(), acc = 0, lastT = Date.now();
+    function persistUsage() {
+        var n = Math.floor(acc), d = accDay; accDay = dayKey();
+        if (n < 1) return Promise.resolve();
+        acc -= n; var o = {}; o[d] = n; return uAdd(o).catch(function () {});
+    }
+    function syncSoon() {
+        try { navigator.serviceWorker && navigator.serviceWorker.ready.then(function (r) { return r.sync && r.sync.register('scical-ping'); }).catch(function () {}); } catch (e) {}
+    }
+    function startUsage() {
+        idb(function (st) { return st.put({ url: BASE.replace('/documents', '') + '/documents:commit?key=' + CFG.apiKey, doc: DOC }, 'cfg'); }).catch(function () {});
+        setInterval(function () {
+            var now = Date.now(), dt = Math.min(5000, now - lastT); lastT = now;
+            if (document.visibilityState === 'visible') { if (dayKey() !== accDay) persistUsage(); acc += dt / 1000; }
+        }, 1000);
+        setInterval(function () { persistUsage(); }, 10000);
+        setInterval(function () { if (document.visibilityState === 'visible' && navigator.onLine) persistUsage().then(flushUsage); }, 60000);
+        document.addEventListener('visibilitychange', function () {
+            lastT = Date.now();
+            if (document.visibilityState === 'hidden') persistUsage().then(syncSoon);
+        });
+        window.addEventListener('pagehide', function () { persistUsage(); syncSoon(); });
+        window.addEventListener('online', flushUsage);
+        flushUsage();
     }
 
     /* ---- ডেটা আনা ---- */
@@ -4049,6 +4172,8 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
                 var o = decFields(d.fields || {}); o.id = d.name.split('/').pop(); return o;
             });
             ls(KEY, JSON.stringify(data));
+            /* অফলাইনের জন্য বিজ্ঞাপনের ছবি আগেই ক্যাশে নামিয়ে রাখা */
+            (data.ads || []).forEach(function (a) { if (a && a.imageUrl) { try { new Image().src = a.imageUrl; } catch (e) {} } });
         });
     }
     function paint() { showAnn(); showUpd(); startRotation(); }
@@ -4056,8 +4181,8 @@ if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     function init() {
         paint();                       // আগের জমা ডেটা দিয়ে অফলাইনেও দেখাবে
         if (!ON) return;
-        refresh().then(paint); ping();
-        window.addEventListener('online', function () { refresh().then(paint); });
+        refresh().then(paint); ping(); startUsage();
+        window.addEventListener('online', function () { refresh().then(paint); ping(); });
         var _set = window.setAppLanguage;
         if (_set) window.setAppLanguage = function (l) { _set(l); renderAd(); };
     }
