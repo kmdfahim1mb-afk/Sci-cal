@@ -952,6 +952,7 @@ function playClick(freq = 700, dur = 0.03) {
    গণিত ইঞ্জিন: টোকেন → প্যার্সার → ক্লোজার
    --------------------------------------------------------------------- */
 class MathErr extends Error {}
+class InfErr extends MathErr {}   /* tan ৯০° ইত্যাদি: মান অসীম */
 class SynErr extends Error {}
 
 const NUM_RE = /^[0-9.]+$/;
@@ -1021,10 +1022,10 @@ const FNS = {
     sin: (v, c) => { const r = angToRad(v, c); return snapTrig(Math.sin(r), r); },
     cos: (v, c) => { const r = angToRad(v, c); return snapTrig(Math.cos(r), r); },
     tan: (v, c) => {
-        if (c.mode === 'deg' && (((v % 180) + 180) % 180) === 90) throw new MathErr();
-        if (c.mode === 'grad' && (((v % 200) + 200) % 200) === 100) throw new MathErr();
+        if (c.mode === 'deg' && (((v % 180) + 180) % 180) === 90) throw new InfErr();
+        if (c.mode === 'grad' && (((v % 200) + 200) % 200) === 100) throw new InfErr();
         const r = angToRad(v, c);
-        if (Math.abs(Math.cos(r)) < 1e-14) throw new MathErr();
+        if (Math.abs(Math.cos(r)) < 1e-14) throw new InfErr();
         return snapTrig(Math.tan(r), r);
     },
     asin: (v, c) => { if (Math.abs(v) > 1) throw new MathErr(); return radToAng(Math.asin(v), c); },
@@ -1503,7 +1504,8 @@ function renderResult() {
     else if (justEvaluated && lastResult !== null) text = fmtValue(clean(lastResult));
     else if (tokens.length === 0) { text = '0'; previewText = '0'; }
     else {
-        try { previewText = fmtValue(clean(evaluate(tokens))); } catch (e) {}
+        try { previewText = fmtValue(clean(evaluate(tokens))); }
+        catch (e) { if (e instanceof InfErr) previewText = '∞'; else if (e instanceof MathErr) previewText = ''; }
         text = previewText;
     }
     lcdResult.innerText = text;
