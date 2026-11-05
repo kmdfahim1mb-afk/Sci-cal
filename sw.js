@@ -1,6 +1,6 @@
 /* Sci Cal — সম্পূর্ণ অফলাইন সার্ভিস ওয়ার্কার (v17)
    একবার ইন্টারনেটে খুললেই সব ফাইল ফোনে জমা হয়; এরপর ডেটা বন্ধ থাকলেও হুবহু একই চেহারায় খোলে। */
-const VERSION = 'scical-v20';
+const VERSION = 'scical-v21';
 const ADS = 'scical-ads';            /* বিজ্ঞাপনের ছবি — ভার্সন বদলালেও মোছা হয় না */
 const CORE = ['./', 'index.html', 'config.js', 'adpopup.js', 'geodata.js', 'geoloc.js',
               'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
